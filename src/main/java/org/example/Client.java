@@ -325,6 +325,7 @@ public class Client {
                 data = strings.get(i).split(",");
                 for (int j = 1; j < data.length; j++) {
                     if (data[j].startsWith(m.getNumber())) {
+                        data = data[j].split(";");
                         i = strings.size();
                         break;
                     }
@@ -349,7 +350,24 @@ public class Client {
                     Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                 }
                 case 2 -> {
-                    System.out.println(Arrays.toString(parseCSV(meter, Path.of("meter.csv"))));
+                    String[] data = parseCSV(meter, Path.of("meter.csv"));
+                    if (meter.getTarif().type == TarifType.SIMPLE) {
+                        if (Integer.parseInt(data[1]) == meter.getDayData() || meter.getNightData() != 0) {
+                            System.out.println("Данные файла не корректны(не введены новые показания или введены лишние данные)");
+                        } else {
+                            contract.setBalance(meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[1]),
+                            meter.getNightData(),Integer.parseInt(data[2])));
+                        }
+                    } else if (meter.getTarif().type == TarifType.DAYNIGHT) {
+                        if (Integer.parseInt(data[1]) == meter.getDayData() || meter.getNightData() == 0) {
+                            System.out.println("Данные файла не корректны(не введены новые показания)");
+                        } else {
+                            contract.setBalance(meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[1]),
+                                    meter.getNightData(),Integer.parseInt(data[2])));
+                        }
+                    } else {
+                        System.out.println("Прибор не подключен к тарифному плану");
+                    }
                 }
             }
         }
