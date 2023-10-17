@@ -1,14 +1,16 @@
 package org.example;
 
-public enum Tarif {
-    SIMPLE {
-        public int action(int startTerm, int endTerm) {
-            return endTerm - startTerm;
-        }
-    },
-    DAYNIGHT {
-        public int action(int startDayMeter, int endDayMeter, int startNightMeter, int endNightMeter) {
-            return (endDayMeter - startDayMeter) + (startNightMeter - endNightMeter) / 2;
-        }
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class Tarif {
+    public TarifType type;
+
+    public int action(int meterDayData, int dayData, int meterNightData, int nightData) {
+        return (dayData - meterDayData) + (nightData - meterNightData) / 2;
     }
 }

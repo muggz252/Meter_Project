@@ -11,10 +11,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
+
 import java.util.*;
+
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -141,22 +144,47 @@ public class Client {
                     case 3 -> {
                         addContract(meterChoice(), getClient(login));
                         Service.listToJson(Service.CLIENT_PATH, Service.clientList);
-                        Service.listToJson(Service.CONTRACT_PATH, Service.contractList);
                     }
                     case 4 -> {
                         Contract c = getContract(Input.next("№ договора: "), client);
                         if (c != null) {
-                            Service.contractList.remove(c);
                             List<Meter> meterList = c.getMeterList();
                             addMeter(meterChoice(), meterList);
-                            Service.contractList.add(c);
-                            Service.listToJson(Service.CONTRACT_PATH,Service.contractList);
                         } else System.out.println("Договора под таким номером нет");
                     }
                     case 5 -> {
-                        if (Admin.getDayOfPay(LocalDate.now())){
-
-                        } else System.out.println();
+                        Contract contract = getContract(Input.next("№ договора: "), client);
+                        if (contract != null) {
+                            if (contract.isDayOfPay()) {
+                                if (contract.getBalance() < 0) {
+                                    System.out.println("Оплатите долг во избежание расторжения договора\n");
+                                }
+                                String meterNumber = Input.next("№ счетчика: ");
+                                Meter meter = contract.getMeterList().stream()
+                                        .filter(t -> t.getNumber().equals(meterNumber))
+                                        .findAny().orElseThrow();
+                                int choice = 0;
+                                if (choice < 3) {
+                                    choice = Input.nextInt("""
+                                            1.Ввести в консоли
+                                            2.Заполнить файл
+                                            3.Выход
+                                            """);
+                                    switch (choice) {
+                                        case 1 -> {
+                                            addMeterData(contract, meter);
+                                            Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                                        }
+                                        case 2 -> {
+                                            createCSV(client, Path.of("meter.csv"));
+                                            addMeterDataFromFile(meter, Path.of("meter.csv"));
+                                        }
+                                    }
+                                }
+                            } else System.out.println("Прием показаний в данное время недоступен.\n" +
+                                    "Дождитесь учетного периода или обратитесь к аминистратору \n" +
+                                    "для изменения графика учетного периода.\n");
+                        }
                     }
                     case 6 -> System.out.println("*************");
                 }
@@ -180,18 +208,18 @@ public class Client {
             case 1 -> {
                 Meter meter = new Meter(MeterType.WATER);
                 contract.getMeterList().add(meter);
-                System.out.println("Вы заключили договор № " + contract.getNumber() + " на учет водоснабжения");
+                addTarif(meter);
+                System.out.println("Вы заключили договор № " + contract.getNumber() + " на учет водоснабжения\n");
             }
             case 2 -> {
                 Meter meter = new Meter(MeterType.ELECTRO);
                 contract.getMeterList().add(meter);
-                System.out.println("Вы заключили договор № " + contract.getNumber() + " на учет электроснабжения");
+                addTarif(meter);
+                System.out.println("Вы заключили договор № " + contract.getNumber() + " на учет электроснабжения\n");
             }
-            case 3 -> System.out.println("Вы заключили договор № " + contract.getNumber());
+            case 3 -> System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
         }
         c.getContractList().add(contract);
-        contract.setDayOfPay(Admin.getDayOfPay(LocalDate.now()));
-        Service.contractList.add(contract);
     }
 
     public static void addMeter(int meterchoice, List<Meter> meterList) {
@@ -199,16 +227,43 @@ public class Client {
             case 1 -> {
                 Meter m = new Meter(MeterType.WATER);
                 meterList.add(m);
-                System.out.println("Прибор добавлен");
+                addTarif(m);
+                System.out.println("Прибор № " + m.getNumber() +  " добавлен" + "\n");
                 Service.listToJson(Service.CLIENT_PATH, Service.clientList);
             }
             case 2 -> {
                 Meter m = new Meter(MeterType.ELECTRO);
                 meterList.add(m);
-                System.out.println("Прибор добавлен");
+                addTarif(m);
+                System.out.println("Прибор № " + m.getNumber() +  " добавлен" + "\n");
                 Service.listToJson(Service.CLIENT_PATH, Service.clientList);
             }
             case 3 -> System.out.println("Прибор не выбран");
+        }
+    }
+
+    public static void addTarif(Meter meter) {
+        int choice = Input.nextInt("""
+                Выбор тарифного плана прибора: 
+                1. Расчет по общему объему потребления
+                2. Расчет дневного и ночного потребления отдельно
+                3. Пока отказаться от выбора тарифного плана
+                """);
+        if (choice != 3) {
+            switch (choice) {
+                case 1 -> {
+                    Tarif t = new Tarif(TarifType.SIMPLE);
+                    meter.setTarif(t);
+                    System.out.println("Выбран общий тариф");
+                    System.out.println("Для смены тарифа обратитесь к администратору\n");
+                }
+                case 2 -> {
+                    Tarif t = new Tarif(TarifType.DAYNIGHT);
+                    meter.setTarif(t);
+                    System.out.println("Выбран тариф с льготным потреблением с 23.00 до 8.00 часов");
+                    System.out.println("Для смены тарифа обратитесь к администратору\n");
+                }
+            }
         }
     }
 
@@ -231,4 +286,65 @@ public class Client {
         return contract;
     }
 
+    public static void addMeterData(Contract c, Meter m) {
+        int data1;
+        int data2 = 0;
+        if (m.getTarif().getType().equals(TarifType.SIMPLE)) {
+            data1 = Input.nextInt("Введите показания счетчика: ");
+        } else {
+            data1 = Input.nextInt("Введите дневные показания счетчика: ");
+            data2 = Input.nextInt("Введите ночные показания счетчика: ");
+        }
+        c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), data1, m.getNightData(), data2));
+        m.setDayData(data1);
+        m.setNightData(data2);
+    }
+
+    public static void createCSV(Client c, Path path) {
+        try (FileWriter writer = new FileWriter(path.toString())) {
+            StringBuilder builder = new StringBuilder();
+            long count = 0;
+            for (Contract contract : c.contractList) {
+                if (contract.getMeterList().size() > count) {
+                    count = contract.getMeterList().size();
+                }
+            }
+            builder.append("Договор" + ";");
+            for (long i = 0; i < count; i++) {
+                builder.append("Счетчик" + ";").append("день" + ";").append("ночь" + ";");
+            }
+            c.contractList.stream().peek(t -> builder.append("\nДоговор № - " + t.getNumber() + ","))
+                    .flatMap(e -> e.getMeterList().stream())
+                    .forEach(x -> builder.append(x + ";")
+                            .append(x.getDayData() + ";").append(x.getNightData() + ","));
+
+            writer.write(builder.toString());
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
+    public static void addMeterDataFromFile(Meter m, Path path) {
+        int day = 0;
+        int night = 0;
+        String[] data;
+        try {
+            List<String> strings = Files.readAllLines(path);
+            for (int i = 1; i < strings.size(); i++) {
+                data = strings.get(i).split(",");
+                for (int j = 1; j < data.length; j++) {
+                    if (data[j].startsWith(m.getNumber())) {
+                        data = data[j].split(";");
+                        day = Integer.valueOf(data[1]);
+                        night = Integer.valueOf(data[2]);
+                        break;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println(day);
+        System.out.println(night);
+    }
 }

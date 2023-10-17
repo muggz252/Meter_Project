@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 
@@ -68,17 +69,18 @@ public class Admin {
                         clientListToCSV(Service.clientList);
                         System.out.println("Файл готов!");
                     }
-                    case 4 -> {
-                        Contract c = getContract(Input.next("№ договора: "));
-                        if (c!=null){
-                            Service.contractList.remove(c);
-                            c.setDayOfPay(!getDayOfPay(LocalDate.now()));
-                            Service.contractList.add(c);
-                            Service.listToJson(Service.CONTRACT_PATH,Service.contractList);
-                            System.out.println("Учетный период договора изменен");
-                        } else System.out.println("Договора под таким номером нет");
+                    case 2 -> {
+                        deleteClient(Input.next("№ договора: "));
+                        Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                     }
-
+                    case 3 -> {
+                        deleteMeter(Input.next("№ договора: "));
+                        Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                    }
+                    case 4 -> {
+                        changePeriod(Input.next("№ договора: "));
+                        Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                    }
                     case 5 -> System.out.println("*************");
                 }
             }
@@ -93,10 +95,6 @@ public class Admin {
             }
         }
         return admin;
-    }
-
-    public static boolean getDayOfPay(LocalDate date) {
-        return date.getDayOfMonth() <= 15;
     }
 
     public static void clientListToCSV(List<Client> clientList) {
@@ -116,15 +114,6 @@ public class Admin {
         }
     }
 
-    public static Contract getContract(String number) {
-        Contract contract = null;
-        for (Contract c : Service.contractList) {
-            if (c.getNumber().equals(number)) {
-                contract = c;
-            }
-        }
-        return contract;
-    }
 
     public static List<Admin> fromJsonToList(Path path) {
         ObjectMapper mapper = new ObjectMapper();
@@ -137,6 +126,71 @@ public class Admin {
             throw new RuntimeException(e.getMessage());
         }
         return list;
+    }
+
+    public static void deleteClient(String number) {
+        Contract contract = null;
+        try {
+            contract = Service.clientList.stream().flatMap(t -> t.getContractList().stream())
+                    .filter(t -> t.getNumber().equals(number)).findAny().orElseThrow();
+        } catch (NoSuchElementException e) {
+            System.out.println("Такого договора не найдено");
+        }
+        Client client = null;
+        for (Client c : Service.clientList) {
+            if (c.getContractList().contains(contract)) {
+                client = c;
+            }
+        }
+        Service.clientList.remove(client);
+    }
+
+    public static void deleteMeter(String number) {
+        Contract contract = null;
+        try {
+            contract = Service.clientList.stream()
+                    .flatMap(t -> t.getContractList().stream())
+                    .filter(t -> t.getNumber().equals(number)).findAny().orElseThrow();
+        } catch (NoSuchElementException e) {
+            System.out.println("Такого договора нет");
+        }
+        String meterNumber = Input.next("№ счетчика: ");
+        try {
+            Meter meter = contract.getMeterList().stream()
+                    .filter(t -> t.getNumber().equals(meterNumber)).findAny().orElseThrow();
+            contract.getMeterList().remove(meter);
+        } catch (NoSuchElementException e) {
+            System.out.println("Такого счетчика нет");
+        }
+    }
+
+    public static void changePeriod(String number) {
+        Contract contract = null;
+        try {
+            contract = Service.clientList.stream()
+                    .flatMap(t -> t.getContractList().stream()
+                            .filter(e -> e.getNumber().equals(number)))
+                    .findAny().orElseThrow();
+        } catch (NoSuchElementException e) {
+            System.out.println("Договор не найден");
+        }
+        if (LocalDate.now().getDayOfMonth() <= 15 == contract.isDayOfPay()) {
+            String answer = Input.next("Текущий период - c 1 по 15 число каждого месяца. " +
+                    "Изменить его? (y/n): ");
+            if (answer.equalsIgnoreCase("y")) {
+                contract.setDayOfPay(!contract.isDayOfPay());
+                System.out.println("Учетный период изменен. Новый учетный период - " +
+                        "с 15 числа до конца месяца \n");
+            } else System.out.println("Учетный период прежний");
+        } else {
+            String answer = Input.next("Текущий период - c 15 по конец месяца. " +
+                    "Изменить его? (y/n): ");
+            if (answer.equalsIgnoreCase("y")) {
+                contract.setDayOfPay(!contract.isDayOfPay());
+                System.out.println("Учетный период изменен. Новый учетный период - " +
+                        "с 1 по 15 число месяца\n");
+            } else System.out.println("Учетный период прежний");
+        }
     }
 
     @Override
