@@ -159,32 +159,19 @@ public class Client {
                                 if (contract.getBalance() < 0) {
                                     System.out.println("Оплатите долг во избежание расторжения договора\n");
                                 }
-                                String meterNumber = Input.next("№ счетчика: ");
-                                Meter meter = contract.getMeterList().stream()
-                                        .filter(t -> t.getNumber().equals(meterNumber))
-                                        .findAny().orElseThrow();
-                                int choice = 0;
-                                if (choice < 3) {
-                                    choice = Input.nextInt("""
-                                            1.Ввести в консоли
-                                            2.Заполнить файл
-                                            3.Выход
-                                            """);
-                                    switch (choice) {
-                                        case 1 -> {
-                                            addMeterData(contract, meter);
-                                            Service.listToJson(Service.CLIENT_PATH, Service.clientList);
-                                        }
-                                        case 2 -> {
-                                            createCSV(client, Path.of("meter.csv"));
-                                            addMeterDataFromFile(meter, Path.of("meter.csv"));
-                                        }
-                                    }
+                                try {
+                                    Meter meter = contract.getMeterList().stream()
+                                            .filter(t -> t.getNumber().equals(Input.next("№ счетчика: ")))
+                                            .findAny().orElseThrow();
+                                    if (meter.getTarif() != null) dataMenu(contract, meter);
+                                    else System.out.println("Тарифный план прибора еще не выбран\n");
+                                } catch (NoSuchElementException e) {
+                                    System.out.println("Такого прибора не найдено");
                                 }
                             } else System.out.println("Прием показаний в данное время недоступен.\n" +
                                     "Дождитесь учетного периода или обратитесь к аминистратору \n" +
                                     "для изменения графика учетного периода.\n");
-                        }
+                        } else System.out.println("Договора с таким номером нет\n");
                     }
                     case 6 -> System.out.println("*************");
                 }
@@ -209,13 +196,13 @@ public class Client {
                 Meter meter = new Meter(MeterType.WATER);
                 contract.getMeterList().add(meter);
                 addTarif(meter);
-                System.out.println("Вы заключили договор № " + contract.getNumber() + " на учет водоснабжения\n");
+                System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
             }
             case 2 -> {
                 Meter meter = new Meter(MeterType.ELECTRO);
                 contract.getMeterList().add(meter);
                 addTarif(meter);
-                System.out.println("Вы заключили договор № " + contract.getNumber() + " на учет электроснабжения\n");
+                System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
             }
             case 3 -> System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
         }
@@ -228,14 +215,14 @@ public class Client {
                 Meter m = new Meter(MeterType.WATER);
                 meterList.add(m);
                 addTarif(m);
-                System.out.println("Прибор № " + m.getNumber() +  " добавлен" + "\n");
+                System.out.println("Прибор № " + m.getNumber() + " добавлен" + "\n");
                 Service.listToJson(Service.CLIENT_PATH, Service.clientList);
             }
             case 2 -> {
                 Meter m = new Meter(MeterType.ELECTRO);
                 meterList.add(m);
                 addTarif(m);
-                System.out.println("Прибор № " + m.getNumber() +  " добавлен" + "\n");
+                System.out.println("Прибор № " + m.getNumber() + " добавлен" + "\n");
                 Service.listToJson(Service.CLIENT_PATH, Service.clientList);
             }
             case 3 -> System.out.println("Прибор не выбран");
@@ -300,43 +287,45 @@ public class Client {
         m.setNightData(data2);
     }
 
-    public static void createCSV(Client c, Path path) {
+    public static void createCSV(Path path) {
         try (FileWriter writer = new FileWriter(path.toString())) {
             StringBuilder builder = new StringBuilder();
             long count = 0;
-            for (Contract contract : c.contractList) {
-                if (contract.getMeterList().size() > count) {
-                    count = contract.getMeterList().size();
+            for (Client client : Service.clientList) {
+                for (Contract contract : client.contractList) {
+                    if (contract.getMeterList().size() > count) {
+                        count = contract.getMeterList().size();
+                    }
                 }
             }
             builder.append("Договор" + ";");
             for (long i = 0; i < count; i++) {
                 builder.append("Счетчик" + ";").append("день" + ";").append("ночь" + ";");
             }
-            c.contractList.stream().peek(t -> builder.append("\nДоговор № - " + t.getNumber() + ","))
-                    .flatMap(e -> e.getMeterList().stream())
-                    .forEach(x -> builder.append(x + ";")
-                            .append(x.getDayData() + ";").append(x.getNightData() + ","));
-
+            for (Client client : Service.clientList) {
+                for (Contract contract : client.contractList) {
+                    builder.append("\nДоговор " + contract.getNumber() + ",");
+                    for (Meter meter : contract.getMeterList()) {
+                        builder.append(meter + ";").append(meter.getDayData() + ";")
+                                .append(meter.getNightData() + ",");
+                    }
+                }
+            }
             writer.write(builder.toString());
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }
     }
 
-    public static void addMeterDataFromFile(Meter m, Path path) {
-        int day = 0;
-        int night = 0;
-        String[] data;
+    public static String[] parseCSV(Meter m, Path path) {
+        String[] data = null;
         try {
             List<String> strings = Files.readAllLines(path);
             for (int i = 1; i < strings.size(); i++) {
                 data = strings.get(i).split(",");
                 for (int j = 1; j < data.length; j++) {
                     if (data[j].startsWith(m.getNumber())) {
-                        data = data[j].split(";");
-                        day = Integer.valueOf(data[1]);
-                        night = Integer.valueOf(data[2]);
+                        i = strings.size();
                         break;
                     }
                 }
@@ -344,7 +333,25 @@ public class Client {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(day);
-        System.out.println(night);
+        return data;
+    }
+
+    public static void dataMenu(Contract contract, Meter meter) {
+        int choice = Input.nextInt("""
+                1.Ввести в консоли
+                2.Заполнить файл
+                3.Выход
+                """);
+        if (choice < 3) {
+            switch (choice) {
+                case 1 -> {
+                    addMeterData(contract, meter);
+                    Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                }
+                case 2 -> {
+                    System.out.println(Arrays.toString(parseCSV(meter, Path.of("meter.csv"))));
+                }
+            }
+        }
     }
 }
