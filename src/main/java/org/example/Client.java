@@ -125,14 +125,15 @@ public class Client {
         int number = 0;
         Client client = getClient(login);
         if (getClient(login) != null) {
-            while (number != 6) {
+            while (number != 7) {
                 number = Input.nextInt("""
                         1. Посмотреть список договоров
                         2. Посмотреть наличие приборов по договору
                         3. Заключить новый договор
                         4. Зарегистрировать счетчик по номеру договора
                         5. Передать показания счетчика
-                        6. Выход
+                        6. Пополнить баланс договора
+                        7. Выход
                         """);
                 switch (number) {
                     case 1 -> System.out.println(client.getContractList());
@@ -157,23 +158,25 @@ public class Client {
                         if (contract != null) {
                             if (contract.isDayOfPay()) {
                                 if (contract.getBalance() < 0) {
-                                    System.out.println("Оплатите долг во избежание расторжения договора\n");
+                                    System.out.println("Оплатите долг на балансе договора\n");
                                 }
                                 try {
+                                    String meterNumber = Input.next("№ счетчика: ");
                                     Meter meter = contract.getMeterList().stream()
-                                            .filter(t -> t.getNumber().equals(Input.next("№ счетчика: ")))
+                                            .filter(t -> t.getNumber().equals(meterNumber))
                                             .findAny().orElseThrow();
-                                    if (meter.getTarif() != null) dataMenu(contract, meter);
-                                    else System.out.println("Тарифный план прибора еще не выбран\n");
+                                    if (meter.getTarif() != null) {
+                                        dataMenu(contract, meter);
+                                    } else System.out.println("Тарифный план прибора еще не выбран\n");
                                 } catch (NoSuchElementException e) {
-                                    System.out.println("Такого прибора не найдено");
+                                    System.out.println("Такого прибора не найдено\n");
                                 }
                             } else System.out.println("Прием показаний в данное время недоступен.\n" +
                                     "Дождитесь учетного периода или обратитесь к аминистратору \n" +
                                     "для изменения графика учетного периода.\n");
                         } else System.out.println("Договора с таким номером нет\n");
                     }
-                    case 6 -> System.out.println("*************");
+                    case 7 -> System.out.println("*************");
                 }
             }
         } else System.out.println("Такого клиента нет\n");
@@ -207,6 +210,7 @@ public class Client {
             case 3 -> System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
         }
         c.getContractList().add(contract);
+        createCSV(Path.of("meter.csv"));
     }
 
     public static void addMeter(int meterchoice, List<Meter> meterList) {
@@ -227,6 +231,7 @@ public class Client {
             }
             case 3 -> System.out.println("Прибор не выбран");
         }
+        createCSV(Path.of("meter.csv"));
     }
 
     public static void addTarif(Meter meter) {
@@ -282,9 +287,12 @@ public class Client {
             data1 = Input.nextInt("Введите дневные показания счетчика: ");
             data2 = Input.nextInt("Введите ночные показания счетчика: ");
         }
-        c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), data1, m.getNightData(), data2));
-        m.setDayData(data1);
-        m.setNightData(data2);
+        if (data1 > 0 && data2 >= 0) {
+            c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), data1, m.getNightData(), data2));
+            m.setDayData(data1);
+            m.setNightData(data2);
+            System.out.println("Показания переданы успешно\n");
+        }
     }
 
     public static void createCSV(Path path) {
@@ -300,13 +308,13 @@ public class Client {
             }
             builder.append("Договор" + ";");
             for (long i = 0; i < count; i++) {
-                builder.append("Счетчик" + ";").append("день" + ";").append("ночь" + ";");
+                builder.append("Счетчик" + ",").append("день" + ",").append("ночь" + ",");
             }
             for (Client client : Service.clientList) {
                 for (Contract contract : client.contractList) {
                     builder.append("\nДоговор " + contract.getNumber() + ",");
                     for (Meter meter : contract.getMeterList()) {
-                        builder.append(meter + ";").append(meter.getDayData() + ";")
+                        builder.append(meter + ",").append(meter.getDayData() + ",")
                                 .append(meter.getNightData() + ",");
                     }
                 }
@@ -318,14 +326,15 @@ public class Client {
     }
 
     public static String[] parseCSV(Meter m, Path path) {
-        String[] data = null;
+        String[] data;
+        StringBuilder builder = new StringBuilder();
         try {
             List<String> strings = Files.readAllLines(path);
             for (int i = 1; i < strings.size(); i++) {
                 data = strings.get(i).split(",");
                 for (int j = 1; j < data.length; j++) {
                     if (data[j].startsWith(m.getNumber())) {
-                        data = data[j].split(";");
+                        builder.append(data[j + 1]).append(",").append(data[j + 2]);
                         i = strings.size();
                         break;
                     }
@@ -334,16 +343,16 @@ public class Client {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return data;
+        return builder.toString().split(",");
     }
 
     public static void dataMenu(Contract contract, Meter meter) {
         int choice = Input.nextInt("""
                 1.Ввести в консоли
-                2.Заполнить файл
+                2.Взять из файла
                 3.Выход
                 """);
-        if (choice < 3) {
+        if (choice != 3) {
             switch (choice) {
                 case 1 -> {
                     addMeterData(contract, meter);
@@ -351,23 +360,32 @@ public class Client {
                 }
                 case 2 -> {
                     String[] data = parseCSV(meter, Path.of("meter.csv"));
-                    if (meter.getTarif().type == TarifType.SIMPLE) {
-                        if (Integer.parseInt(data[1]) == meter.getDayData() || meter.getNightData() != 0) {
-                            System.out.println("Данные файла не корректны(не введены новые показания или введены лишние данные)");
+                    if (Integer.parseInt(data[0]) > 0 & Integer.parseInt(data[1]) >= 0) {
+                        if (meter.getTarif().type == TarifType.SIMPLE) {
+                            if (Integer.parseInt(data[0]) == meter.getDayData() | meter.getNightData() != 0) {
+                                System.out.println("Данные файла не корректны(не введены новые показания или введены лишние данные)\n");
+                            } else {
+                                contract.setBalance(contract.getBalance() - meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[0]),
+                                        meter.getNightData(), Integer.parseInt(data[1])));
+                                System.out.println("Показания переданы успешно\n");
+                                meter.setDayData(Integer.parseInt(data[0]));
+                                Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                            }
+                        } else if (meter.getTarif().type == TarifType.DAYNIGHT) {
+                            if (Integer.parseInt(data[0]) == meter.getDayData() | Integer.parseInt(data[1]) == 0) {
+                                System.out.println("Данные файла не корректны(не введены новые показания)\n");
+                            } else {
+                                contract.setBalance(contract.getBalance() - meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[0]),
+                                        meter.getNightData(), Integer.parseInt(data[1])));
+                                System.out.println("Показания переданы успешно\n");
+                                meter.setDayData(Integer.parseInt(data[0]));
+                                meter.setNightData(Integer.parseInt(data[1]));
+                                Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                            }
                         } else {
-                            contract.setBalance(meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[1]),
-                            meter.getNightData(),Integer.parseInt(data[2])));
+                            System.out.println("Прибор не подключен к тарифному плану");
                         }
-                    } else if (meter.getTarif().type == TarifType.DAYNIGHT) {
-                        if (Integer.parseInt(data[1]) == meter.getDayData() || meter.getNightData() == 0) {
-                            System.out.println("Данные файла не корректны(не введены новые показания)");
-                        } else {
-                            contract.setBalance(meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[1]),
-                                    meter.getNightData(),Integer.parseInt(data[2])));
-                        }
-                    } else {
-                        System.out.println("Прибор не подключен к тарифному плану");
-                    }
+                    } else System.out.println("Данные файла не корректны(не могут быть со знаком минус)\n");
                 }
             }
         }

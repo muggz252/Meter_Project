@@ -44,7 +44,6 @@ public class Service {
                 case 3 -> {
                     clientList = !Files.exists(CLIENT_PATH) ?
                             new ArrayList<>() : Client.fromJsonToList(CLIENT_PATH);
-                    Client.createCSV(Path.of("meter.csv"));
                     System.out.println(clientList);
                     Client.getClientMenu(Input.next("E-mail: "));
                 }

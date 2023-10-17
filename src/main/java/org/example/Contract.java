@@ -22,7 +22,7 @@ public class Contract {
     }
 
     public boolean getDayOfPay(LocalDate date) {
-        return date.getDayOfMonth() <= 15;
+        return date.getDayOfMonth() > 15;
     }
 
     public void setDayOfPay(boolean b) {
