@@ -15,6 +15,8 @@ public class Service {
     public final static Path ADMIN_PATH = Path.of("admins.json");
     public final static Path CLIENT_PATH = Path.of("clients.json");
 
+
+
     public static List<Client> clientList;
     public static List<Admin> adminList;
 
@@ -44,7 +46,6 @@ public class Service {
                 case 3 -> {
                     clientList = !Files.exists(CLIENT_PATH) ?
                             new ArrayList<>() : Client.fromJsonToList(CLIENT_PATH);
-                    System.out.println(clientList);
                     Client.getClientMenu(Input.next("E-mail: "));
                 }
                 case 4 -> {

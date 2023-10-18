@@ -16,6 +16,7 @@ import java.util.List;
 
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 @NoArgsConstructor
@@ -56,14 +57,16 @@ public class Admin {
         Admin admin = getAdmin(login);
         if (admin != null) {
             int choice = 0;
-            while (choice != 5) {
+            while (choice != 6) {
                 choice = Input.nextInt("""
-                        1. Создать файл с данными всех пользователей
-                        2. Удалить учетную запись пользователя по номеру договора
-                        3. Удалить счетчик по номеру договора и счетчика
-                        4. Изменить учетный период договора
-                        5. Выход
+                             1. Создать файл с данными всех пользователей
+                             2. Удалить учетную запись пользователя по номеру договора
+                             3. Удалить счетчик по номеру договора и счетчика
+                             4. Изменить учетный период договора
+                             5. Поменять тарифный план счетчика
+                             6. Выход
                         """);
+                final Path path = Path.of("meter.csv");
                 switch (choice) {
                     case 1 -> {
                         clientListToCSV(Service.clientList);
@@ -71,17 +74,24 @@ public class Admin {
                     }
                     case 2 -> {
                         deleteClient(Input.next("№ договора: "));
+                        Client.createCSV(path);
                         Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                     }
                     case 3 -> {
                         deleteMeter(Input.next("№ договора: "));
+                        Client.createCSV(path);
                         Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                     }
                     case 4 -> {
                         changePeriod(Input.next("№ договора: "));
                         Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                     }
-                    case 5 -> System.out.println("*************");
+                    case 5 -> {
+                        String number = Input.next("№ договора: ");
+                        changeTarif(number);
+                        Service.listToJson(Service.CLIENT_PATH, Service.clientList);
+                    }
+                    case 6 -> System.out.println("*************");
                 }
             }
         } else System.out.println("Админа под таким логином нет");
@@ -143,6 +153,7 @@ public class Admin {
             }
         }
         Service.clientList.remove(client);
+        System.out.println("Клиент " + client.getLogin() + " удален\n");
     }
 
     public static void deleteMeter(String number) {
@@ -159,6 +170,7 @@ public class Admin {
             Meter meter = contract.getMeterList().stream()
                     .filter(t -> t.getNumber().equals(meterNumber)).findAny().orElseThrow();
             contract.getMeterList().remove(meter);
+            System.out.println("Прибор " + meter + " удален\n");
         } catch (NoSuchElementException e) {
             System.out.println("Такого счетчика нет");
         }
@@ -190,6 +202,32 @@ public class Admin {
                 System.out.println("Учетный период изменен. Новый учетный период - " +
                         "с 1 по 15 число месяца\n");
             } else System.out.println("Учетный период прежний");
+        }
+    }
+
+    public static void changeTarif(String number) {
+        String meterNumber = Input.next("№ Счетчика: ");
+        try {
+            Meter meter = Service.clientList.stream()
+                    .flatMap(t -> t.getContractList().stream()
+                            .filter(c -> c.getNumber().equals(number))
+                            .flatMap(m -> m.getMeterList().stream()
+                                    .filter(x -> x.getNumber().equals(meterNumber))))
+                    .findAny().orElseThrow();
+            System.out.println("Текущий тарифный план прибора: " + meter.getTarif().type);
+            String answer = Input.next("Желаете поменять тариф(y/n)?: ");
+            if (answer.equalsIgnoreCase("y")) {
+                Tarif t;
+                if (meter.getTarif().type == TarifType.DAYNIGHT) {
+                    t = new Tarif(TarifType.SIMPLE);
+                } else {
+                    t = new Tarif(TarifType.DAYNIGHT);
+                }
+                meter.setTarif(t);
+                System.out.println("Новый тариф - " + t.type + "\n");
+            } else System.out.println("Тарифный план прежний\n");
+        } catch (NoSuchElementException e) {
+            System.out.println("Прибор не найден\n");
         }
     }
 
