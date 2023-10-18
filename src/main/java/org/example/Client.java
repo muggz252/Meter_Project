@@ -49,7 +49,7 @@ public class Client {
     }
 
     public static void sendMail(String mail, String code) {
-        String from = "maximfedorovykh@gmail.com"; //в поле from вставляем наш e-mail - только gmail!
+        String from = "YOUR_E-MAIL"; //в поле from вставляем наш e-mail - только gmail!
         String to = mail;
         String host = "smtp.gmail.com";
         String port = "465";
@@ -64,7 +64,7 @@ public class Client {
                 properties, new Authenticator() {
                     @Override
                     protected PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication(from, "mqpukzhovmfdeimp");
+                        return new PasswordAuthentication(from, "NEED_PASSWORD");
                     }   // вторым параметром в конструктор PasswordAuthentication передаем пароль,
                 });    // который генерируем по пути -> Управление аккаунтом - Безопасность - Двухэтапная аутентификация - Пароли приложений
         try {
