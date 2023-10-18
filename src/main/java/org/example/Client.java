@@ -48,7 +48,7 @@ public class Client {
     }
 
     public static void sendMail(String mail, String code) {
-        String from = "maximfedorovykh@gmail.com";
+        String from = "maximfedorovykh@gmail.com"; //в поле from вставляем наш e-mail - только gmail!
         String to = mail;
         String host = "smtp.gmail.com";
         String port = "465";
@@ -64,8 +64,8 @@ public class Client {
                     @Override
                     protected PasswordAuthentication getPasswordAuthentication() {
                         return new PasswordAuthentication(from, "mqpukzhovmfdeimp");
-                    }
-                });
+                    }   // вторым параметром в конструктор PasswordAuthentication передаем пароль,
+                });    // который генерируем по пути -> Управление аккаунтом - Безопасность - Двухэтапная аутентификация - Пароли приложений
         try {
             MimeMessage mimeMessage = new MimeMessage(session);
             mimeMessage.setFrom(new InternetAddress(from));
@@ -171,9 +171,11 @@ public class Client {
                                 } catch (NoSuchElementException e) {
                                     System.out.println("Такого прибора не найдено\n");
                                 }
-                            } else System.out.println("Прием показаний в данное время недоступен.\n" +
-                                    "Дождитесь учетного периода или обратитесь к аминистратору \n" +
-                                    "для изменения графика учетного периода.\n");
+                            } else System.out.println("""
+                                    Прием показаний в данное время недоступен.
+                                    Дождитесь окончания учетного периода или обратитесь к аминистратору\s
+                                    для изменения графика учетного периода.
+                                    """);
                         } else System.out.println("Договора с таким номером нет\n");
                     }
                     case 7 -> System.out.println("*************");
@@ -194,49 +196,40 @@ public class Client {
 
     public static void addContract(int meterChoice, Client c) {
         Contract contract = new Contract();
+        Meter meter = null;
         switch (meterChoice) {
-            case 1 -> {
-                Meter meter = new Meter(MeterType.WATER);
-                contract.getMeterList().add(meter);
-                addTarif(meter);
-                System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
-            }
-            case 2 -> {
-                Meter meter = new Meter(MeterType.ELECTRO);
-                contract.getMeterList().add(meter);
-                addTarif(meter);
-                System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
-            }
-            case 3 -> System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
+            case 1 -> meter = new Meter(MeterType.WATER);
+            case 2 -> meter = new Meter(MeterType.ELECTRO);
         }
+        contract.getMeterList().add(meter);
+        addTarif(meter);
+        System.out.println("Вы заключили договор № " + contract.getNumber() + "\n");
         c.getContractList().add(contract);
         createCSV(Path.of("meter.csv"));
     }
 
     public static void addMeter(int meterchoice, List<Meter> meterList) {
+        Meter m = null;
         switch (meterchoice) {
             case 1 -> {
-                Meter m = new Meter(MeterType.WATER);
-                meterList.add(m);
-                addTarif(m);
+                m = new Meter(MeterType.WATER);
                 System.out.println("Прибор № " + m.getNumber() + " добавлен" + "\n");
-                Service.listToJson(Service.CLIENT_PATH, Service.clientList);
             }
             case 2 -> {
-                Meter m = new Meter(MeterType.ELECTRO);
-                meterList.add(m);
-                addTarif(m);
+                m = new Meter(MeterType.ELECTRO);
                 System.out.println("Прибор № " + m.getNumber() + " добавлен" + "\n");
-                Service.listToJson(Service.CLIENT_PATH, Service.clientList);
             }
             case 3 -> System.out.println("Прибор не выбран");
         }
+        meterList.add(m);
+        addTarif(m);
+        Service.listToJson(Service.CLIENT_PATH, Service.clientList);
         createCSV(Path.of("meter.csv"));
     }
 
     public static void addTarif(Meter meter) {
         int choice = Input.nextInt("""
-                Выбор тарифного плана прибора: 
+                Выбор тарифного плана прибора:\s
                 1. Расчет по общему объему потребления
                 2. Расчет дневного и ночного потребления отдельно
                 3. Пока отказаться от выбора тарифного плана
@@ -279,20 +272,39 @@ public class Client {
     }
 
     public static void addMeterData(Contract c, Meter m) {
-        int data1;
-        int data2 = 0;
+        int dayData = 0;
+        int nightData = 0;
         if (m.getTarif().getType().equals(TarifType.SIMPLE)) {
-            data1 = Input.nextInt("Введите показания счетчика: ");
+            dayData = Input.nextInt("Введите показания счетчика: ");
+        } else if (m.getTarif().getType().equals(TarifType.DAYNIGHT)) {
+            dayData = Input.nextInt("Введите дневные показания счетчика: ");
+            nightData = Input.nextInt("Введите ночные показания счетчика: ");
         } else {
-            data1 = Input.nextInt("Введите дневные показания счетчика: ");
-            data2 = Input.nextInt("Введите ночные показания счетчика: ");
+            System.out.println("Прибор не подключен к тарифному плану");
         }
-        if (data1 > 0 && data2 >= 0) {
-            c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), data1, m.getNightData(), data2));
-            m.setDayData(data1);
-            m.setNightData(data2);
+        if (dayData > 0 && nightData >= 0) {
+            c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), dayData, m.getNightData(), nightData));
+            m.setDayData(dayData);
+            m.setNightData(nightData);
             System.out.println("Показания переданы успешно\n");
         }
+    }
+
+    public static void addMeterData(Contract c, Meter m, String[] data) {
+        int dayData = Integer.parseInt(data[0]) > m.getDayData() ? Integer.parseInt(data[0]) : 0;
+        int nightData = Integer.parseInt(data[1])> m.getNightData()? Integer.parseInt(data[1]) : 0;
+        if (m.getTarif() != null) {
+            nightData = m.getTarif().type == TarifType.SIMPLE ? 0 : nightData;
+            if (dayData == 0) {
+                System.out.println("Данные некорректны. Показания меньше предыдущих или заполнены лишние поля \n" +
+                        "По счетчику с общим тарифом принимаются показания только из поля 'день'");
+            } else {
+                c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), dayData, m.getNightData(), nightData));
+                m.setDayData(dayData);
+                m.setNightData(nightData);
+                System.out.println("Показания переданы успешно\n");
+            }
+        } else System.out.println("Прибор не подключен к тарифному плану");
     }
 
     public static void createCSV(Path path) {
@@ -356,36 +368,15 @@ public class Client {
             switch (choice) {
                 case 1 -> {
                     addMeterData(contract, meter);
+                    createCSV(Path.of("meter.csv"));
+                    System.out.println("Баланс договора " + contract.getBalance() + "\n");
                     Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                 }
                 case 2 -> {
-                    String[] data = parseCSV(meter, Path.of("meter.csv"));
-                    if (Integer.parseInt(data[0]) > 0 & Integer.parseInt(data[1]) >= 0) {
-                        if (meter.getTarif().type == TarifType.SIMPLE) {
-                            if (Integer.parseInt(data[0]) == meter.getDayData() | meter.getNightData() != 0) {
-                                System.out.println("Данные файла не корректны(не введены новые показания или введены лишние данные)\n");
-                            } else {
-                                contract.setBalance(contract.getBalance() - meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[0]),
-                                        meter.getNightData(), Integer.parseInt(data[1])));
-                                System.out.println("Показания переданы успешно\n");
-                                meter.setDayData(Integer.parseInt(data[0]));
-                                Service.listToJson(Service.CLIENT_PATH, Service.clientList);
-                            }
-                        } else if (meter.getTarif().type == TarifType.DAYNIGHT) {
-                            if (Integer.parseInt(data[0]) == meter.getDayData() | Integer.parseInt(data[1]) == 0) {
-                                System.out.println("Данные файла не корректны(не введены новые показания)\n");
-                            } else {
-                                contract.setBalance(contract.getBalance() - meter.getTarif().action(meter.getDayData(), Integer.parseInt(data[0]),
-                                        meter.getNightData(), Integer.parseInt(data[1])));
-                                System.out.println("Показания переданы успешно\n");
-                                meter.setDayData(Integer.parseInt(data[0]));
-                                meter.setNightData(Integer.parseInt(data[1]));
-                                Service.listToJson(Service.CLIENT_PATH, Service.clientList);
-                            }
-                        } else {
-                            System.out.println("Прибор не подключен к тарифному плану");
-                        }
-                    } else System.out.println("Данные файла не корректны(не могут быть со знаком минус)\n");
+                    addMeterData(contract, meter, parseCSV(meter, Path.of("meter.csv")));
+                    createCSV(Path.of("meter.csv"));
+                    System.out.println("Баланс договора " + contract.getBalance() + "\n");
+                    Service.listToJson(Service.CLIENT_PATH, Service.clientList);
                 }
             }
         }
