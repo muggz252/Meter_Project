@@ -1,10 +1,5 @@
 package org.example;
 
 public class Main {
-    public static void main(String[] args) {
-
-        new Service();
-
-
-    }
+    public static void main(String[] args) {new Service();}
 }
