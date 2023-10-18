@@ -160,14 +160,12 @@ public class Client {
                                 if (contract.getBalance() < 0) {
                                     System.out.println("Оплатите долг на балансе договора\n");
                                 }
+                                String meterNumber = Input.next("№ счетчика: ");
                                 try {
-                                    String meterNumber = Input.next("№ счетчика: ");
                                     Meter meter = contract.getMeterList().stream()
                                             .filter(t -> t.getNumber().equals(meterNumber))
                                             .findAny().orElseThrow();
-                                    if (meter.getTarif() != null) {
-                                        dataMenu(contract, meter);
-                                    } else System.out.println("Тарифный план прибора еще не выбран\n");
+                                    dataMenu(contract,meter);
                                 } catch (NoSuchElementException e) {
                                     System.out.println("Такого прибора не найдено\n");
                                 }
@@ -294,11 +292,11 @@ public class Client {
         int dayData = Integer.parseInt(data[0]) > m.getDayData() ? Integer.parseInt(data[0]) : 0;
         int nightData = Integer.parseInt(data[1])> m.getNightData()? Integer.parseInt(data[1]) : 0;
         if (m.getTarif() != null) {
-            nightData = m.getTarif().type == TarifType.SIMPLE ? 0 : nightData;
             if (dayData == 0) {
                 System.out.println("Данные некорректны. Показания меньше предыдущих или заполнены лишние поля \n" +
                         "По счетчику с общим тарифом принимаются показания только из поля 'день'");
             } else {
+                nightData = m.getTarif().type == TarifType.SIMPLE ? 0 : nightData;
                 c.setBalance(c.getBalance() - m.getTarif().action(m.getDayData(), dayData, m.getNightData(), nightData));
                 m.setDayData(dayData);
                 m.setNightData(nightData);
