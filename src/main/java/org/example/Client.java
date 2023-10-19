@@ -48,7 +48,7 @@ public class Client {
     }
 
     public static void sendMail(String mail, String code) {
-        String from = "maximfedorovykh@gmail.com";
+        String from = "";
         String to = mail;
         String host = "smtp.gmail.com";
         String port = "465";
@@ -63,7 +63,7 @@ public class Client {
                 properties, new Authenticator() {
                     @Override
                     protected PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication(from, "mqpukzhovmfdeimp");
+                        return new PasswordAuthentication(from, "");
                     }
                 });
         try {
